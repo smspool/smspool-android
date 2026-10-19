@@ -1,0 +1,40 @@
+# Turns each version tag pushed by lmaochen/smspool-android's publish workflow
+# into a GitHub release with SMSPool.apk attached, so
+# /releases/latest/download/SMSPool.apk always serves the newest build.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, e.g. v1.4.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+
+      - name: Create release
+        run: |
+          title=$(git log -1 --format=%s)
+          sha256=$(sha256sum SMSPool.apk | cut -d' ' -f1)
+          notes="Play-signed build of the official SMSPool Android app.
+
+          SHA-256: \`$sha256\`"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" SMSPool.apk --clobber
+          else
+            gh release create "$TAG" SMSPool.apk --verify-tag --latest --title "$title" --notes "$notes"
+          fi
