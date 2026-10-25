@@ -7,9 +7,9 @@ The official SMSPool Android app, signed by Google Play — the same build as th
 
 | | |
 |---|---|
-| Version | 1.4.5 (32) |
+| Version | 1.4.6 (33) |
 | Package | `com.smspool.app` |
-| SHA-256 | `4fdea94d4b9773a4925bffa3b3c5aef557f92e9eec4f975c555884407c34d482` |
+| SHA-256 | `aceceb3d73230c04fa5aad089b9a5f2bb1d10db5a156928ed03be11eab0e76b3` |
 | Signing certificate SHA-256 | `587674f3266a2622d72476f6fd0407ea34b62ced257a4d98a29100e9e5fcdc40` |
 
 Older versions are available under [releases](https://github.com/smspool/smspool-android/releases).
