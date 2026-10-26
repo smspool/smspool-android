@@ -1,11 +1,17 @@
 # Turns each version tag pushed by lmaochen/smspool-android's publish workflow
 # into a GitHub release with SMSPool.apk attached, so
 # /releases/latest/download/SMSPool.apk always serves the newest build.
+#
+# Patch notes come from notes/<tag>.md, which the publish workflow copies from
+# releases/notes/ in lmaochen/smspool-android. A push that only changes notes
+# updates the matching releases' text.
 name: Release
 
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: ['notes/**']
   workflow_dispatch:
     inputs:
       tag:
@@ -17,6 +23,7 @@ permissions:
 
 jobs:
   release:
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
@@ -30,11 +37,50 @@ jobs:
         run: |
           title=$(git log -1 --format=%s)
           sha256=$(sha256sum SMSPool.apk | cut -d' ' -f1)
-          notes="Play-signed build of the official SMSPool Android app.
-
-          SHA-256: \`$sha256\`"
+          {
+            echo "Play-signed build of the official SMSPool Android app."
+            if [ -f "notes/$TAG.md" ]; then echo; cat "notes/$TAG.md"; fi
+            echo
+            echo "SHA-256: \`$sha256\`"
+          } > "$RUNNER_TEMP/notes.md"
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" SMSPool.apk --clobber
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
-            gh release create "$TAG" SMSPool.apk --verify-tag --latest --title "$title" --notes "$notes"
+            gh release create "$TAG" SMSPool.apk --verify-tag --latest --title "$title" --notes-file "$RUNNER_TEMP/notes.md"
           fi
+
+  notes:
+    if: github.ref_type == 'branch' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Update release notes
+        run: |
+          for file in notes/v*.md; do
+            [ -f "$file" ] || continue
+            tag=$(basename "$file" .md)
+            # A tag push still creating this release writes the notes itself.
+            body=$(gh release view "$tag" --json body -q .body 2>/dev/null) || { echo "$tag: no release yet"; continue; }
+            sha256=$(printf '%s\n' "$body" | sed -n 's/^SHA-256: `\([0-9a-f]*\)`.*/\1/p' | head -1)
+            if [ -z "$sha256" ]; then
+              gh release download "$tag" -p SMSPool.apk -D "$RUNNER_TEMP/$tag"
+              sha256=$(sha256sum "$RUNNER_TEMP/$tag/SMSPool.apk" | cut -d' ' -f1)
+            fi
+            {
+              echo "Play-signed build of the official SMSPool Android app."
+              echo
+              cat "$file"
+              echo
+              echo "SHA-256: \`$sha256\`"
+            } > "$RUNNER_TEMP/notes.md"
+            if [ "$(cat "$RUNNER_TEMP/notes.md")" = "$body" ]; then
+              echo "$tag: up to date"
+            else
+              gh release edit "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+              echo "$tag: notes updated"
+            fi
+          done
